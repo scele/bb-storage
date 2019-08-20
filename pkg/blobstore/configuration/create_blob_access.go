@@ -271,6 +271,17 @@ func createBlobAccess(configuration *pb.BlobAccessConfiguration, storageType str
 			return nil, err
 		}
 		implementation = blobstore.NewSizeDistinguishingBlobAccess(small, large, backend.SizeDistinguishing.CutoffSizeBytes)
+	case *pb.BlobAccessConfiguration_Tiered:
+		backendType = "tiered"
+		var tiers []blobstore.BlobAccess
+		for _, tier := range backend.Tiered.Tier {
+			t, err := createBlobAccess(tier, storageType, digestKeyFormat)
+			if err != nil {
+				return nil, err
+			}
+			tiers = append(tiers, t)
+		}
+		implementation = blobstore.NewTieredBlobAccess(tiers)
 	default:
 		return nil, errors.New("Configuration did not contain a backend")
 	}

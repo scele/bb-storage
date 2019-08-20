@@ -220,3 +220,14 @@ def bb_storage_go_dependencies():
         importpath = "github.com/fatih/color",
     )
 
+    go_repository(
+        name = "com_github_hashicorp_go_multierror",
+        commit = "bdca7bb83f603b80ef756bb953fe1dafa9cd00a2",
+        importpath = "github.com/hashicorp/go-multierror",
+    )
+
+    go_repository(
+        name = "com_github_hashicorp_errwrap",
+        commit = "8a6fb523712970c966eefc6b39ed2c5e74880354",
+        importpath = "github.com/hashicorp/errwrap",
+    )

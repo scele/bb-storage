@@ -53,6 +53,9 @@ message BlobAccessConfiguration {
 
     // Read objects from/write objects to various cloud-based backends.
     CloudBlobAccessConfiguration cloud = 10;
+
+    // Implement multiple cache tiers.
+    TieredBlobAccessConfiguration tiered = 11;
   }
 }
 
@@ -189,4 +192,9 @@ message SizeDistinguishingBlobAccessConfiguration {
 
   // Maximum size of blobs read from/written to the backend for small blobs.
   int64 cutoff_size_bytes = 3;
+}
+
+message TieredBlobAccessConfiguration {
+  // List of backends that serve as cache tiers.
+  repeated BlobAccessConfiguration tier = 1;
 }
