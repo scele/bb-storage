@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/reflection"
 
 	"go.opencensus.io/plugin/ocgrpc"
 )
@@ -98,6 +99,7 @@ func main() {
 	remoteexecution.RegisterExecutionServer(s, buildQueue)
 	grpc_prometheus.EnableHandlingTimeHistogram()
 	grpc_prometheus.Register(s)
+	reflection.Register(s)
 
 	sock, err := net.Listen("tcp", storageConfiguration.GrpcListenAddress)
 	if err != nil {
