@@ -5,10 +5,9 @@ import (
 	"io"
 
 	"github.com/buildbarn/bb-storage/pkg/util"
-
 	"gocloud.dev/blob"
 	"gocloud.dev/gcerrors"
-
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -64,13 +63,55 @@ func (ba *cloudBlobAccess) Delete(ctx context.Context, digest *util.Digest) erro
 }
 
 func (ba *cloudBlobAccess) FindMissing(ctx context.Context, digests []*util.Digest) ([]*util.Digest, error) {
-	var missing []*util.Digest
-	for _, digest := range digests {
-		if exists, err := ba.bucket.Exists(ctx, ba.getKey(digest)); err != nil {
-			return nil, err
-		} else if !exists {
-			missing = append(missing, digest)
+	g, ctx := errgroup.WithContext(ctx)
+	in := make(chan *util.Digest)
+	out := make(chan *util.Digest)
+
+	workers := 32 //512
+	if len(digests) < workers {
+		workers = len(digests)
+	}
+
+	for i := 0; i < workers; i++ {
+		g.Go(func() error {
+			for digest := range in {
+				exists, err := ba.bucket.Exists(ctx, ba.getKey(digest))
+				if err != nil {
+					return err
+				}
+				if !exists {
+					select {
+					case out <- digest:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				} else {
+					select {
+					default:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
+			}
+			return nil
+		})
+	}
+	go func() {
+		for _, digest := range digests {
+			in <- digest
 		}
+		close(in)
+		g.Wait()
+		close(out)
+	}()
+
+	var missing []*util.Digest
+	for digest := range out {
+		missing = append(missing, digest)
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	return missing, nil
 }
