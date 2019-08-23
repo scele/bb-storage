@@ -9,6 +9,7 @@ import (
 	"github.com/buildbarn/bb-storage/pkg/util"
 
 	"golang.org/x/net/context/ctxhttp"
+	"golang.org/x/sync/errgroup"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -70,23 +71,52 @@ func (ba *remoteBlobAccess) Delete(ctx context.Context, digest *util.Digest) err
 }
 
 func (ba *remoteBlobAccess) FindMissing(ctx context.Context, digests []*util.Digest) ([]*util.Digest, error) {
-	var missing []*util.Digest
-	for _, digest := range digests {
-		url := fmt.Sprintf("%s/%s/%s", ba.address, ba.prefix, digest.GetHashString())
-		resp, err := ctxhttp.Head(ctx, http.DefaultClient, url)
-		if err != nil {
-			return nil, err
-		}
+	g, ctx := errgroup.WithContext(ctx)
+	in := make(chan *util.Digest, 10)
+	out := make(chan *util.Digest, 10)
 
-		switch resp.StatusCode {
-		case http.StatusNotFound:
-			missing = append(missing, digest)
-		case http.StatusOK:
-			continue
-		default:
-			return nil, convertHTTPUnexpectedStatus(resp)
-		}
+	workers := 512
+	if len(digests) < workers {
+		workers = len(digests)
 	}
 
+	for i := 0; i < workers; i++ {
+		g.Go(func() error {
+			for digest := range in {
+				url := fmt.Sprintf("%s/%s/%s", ba.address, ba.prefix, digest.GetHashString())
+				resp, err := ctxhttp.Head(ctx, http.DefaultClient, url)
+				if err != nil {
+					return err
+				}
+
+				switch resp.StatusCode {
+				case http.StatusNotFound:
+					out <- digest
+				case http.StatusOK:
+					// No fallthrough
+				default:
+					return convertHTTPUnexpectedStatus(resp)
+				}
+			}
+			return nil
+		})
+	}
+	go func() {
+		for _, digest := range digests {
+			in <- digest
+		}
+		close(in)
+		g.Wait()
+		close(out)
+	}()
+
+	var missing []*util.Digest
+	for digest := range out {
+		missing = append(missing, digest)
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
 	return missing, nil
 }
