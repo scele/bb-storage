@@ -20,8 +20,8 @@ import (
 	"google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 
 	"go.opencensus.io/plugin/ocgrpc"
 )
@@ -68,15 +68,19 @@ func main() {
 
 	// Backends capable of compiling.
 	for name, endpoint := range storageConfiguration.Schedulers {
-		scheduler, err := grpc.Dial(
-			endpoint,
-			grpc.WithInsecure(),
-			grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
-		if err != nil {
-			log.Fatal("Failed to create scheduler RPC client: ", err)
+		if storageConfiguration.CachingQueue {
+			schedulers[name] = builder.NewCachingBuildQueue(actionCache, cas.NewBlobAccessContentAddressableStorage(contentAddressableStorageBlobAccess, 10000000))
+		} else {
+			scheduler, err := grpc.Dial(
+				endpoint,
+				grpc.WithInsecure(),
+				grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
+				grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+			if err != nil {
+				log.Fatal("Failed to create scheduler RPC client: ", err)
+			}
+			schedulers[name] = builder.NewForwardingBuildQueue(scheduler)
 		}
-		schedulers[name] = builder.NewForwardingBuildQueue(scheduler)
 	}
 	buildQueue := builder.NewDemultiplexingBuildQueue(func(instance string) (builder.BuildQueue, error) {
 		scheduler, ok := schedulers[instance]
