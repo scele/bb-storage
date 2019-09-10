@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "build_queue.go",
+        "caching_build_queue.go",
         "demultiplexing_build_queue.go",
         "forwarding_build_queue.go",
         "non_executable_build_queue.go",
@@ -11,10 +12,15 @@ go_library(
     importpath = "github.com/buildbarn/bb-storage/pkg/builder",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/ac:go_default_library",
+        "//pkg/cas:go_default_library",
         "//pkg/util:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/remote/execution/v2:go_default_library",
         "@com_github_bazelbuild_remote_apis//build/bazel/semver:go_default_library",
+        "@com_github_golang_protobuf//ptypes:go_default_library_gen",
+        "@com_github_google_uuid//:go_default_library",
         "@go_googleapis//google/longrunning:longrunning_go_proto",
+        "@go_googleapis//google/rpc:status_go_proto",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes:go_default_library",
         "@org_golang_google_grpc//status:go_default_library",

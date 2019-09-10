@@ -38,4 +38,7 @@ message StorageConfiguration {
 
   // List of instances which can upload to the Action Cache.
   repeated string allow_ac_updates_for_instances = 6;
+
+  // Whether to use caching queue.
+  bool caching_queue = 7;
 }
